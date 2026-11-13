@@ -32,6 +32,8 @@ spring:
       database: 0
       host: 127.0.0.1
       port: 6379
+      username: root
+      password: root
       timeout: 3000
       jedis:
         pool:
@@ -43,8 +45,8 @@ spring:
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
-        username: nacos
-        password: nacos
+        username: root
+        password: root
       eager: true
   kafka:
     bootstrap-servers: 127.0.0.1:9092
@@ -108,8 +110,8 @@ jasypt:
     algorithm: PBEWithMD5AndDES
 elasticsearch:
   ip: 127.0.0.1:9200
-  userName: elastic
-  passWord: elastic
+  userName: root
+  passWord: root
 delay:
   queue:
     corePoolSize: 1
