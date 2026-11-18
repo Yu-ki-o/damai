@@ -1,6 +1,13 @@
+# Track Java sources and ignore-rule files only.
+# Keep directories traversable so nested Java sources can be found.
+*
+!*/
+!*.java
+!.gitignore
+
+# Exclude generated files and local tool directories.
 HELP.md
 target/
-!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 logs/
