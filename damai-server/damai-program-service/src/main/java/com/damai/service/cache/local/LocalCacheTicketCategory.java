@@ -37,6 +37,10 @@ public class LocalCacheTicketCategory {
     @Value("${maximumSize:10000}")
     private Long maximumSize;
     
+    //节目票档数据并没有节目演出时间的字段，所以没有办法直接使用来设置过期时间，
+    // 但我们可以利用一个技巧，在放入本地缓存前，会放到Redis缓存，
+    // 而存放Redis缓存时会设置过期时间，就可以利用这一点，在放入本地缓存的过程中，
+    // 从Redis中获取此数据的过期时间，来作为本地缓存的过期时间
     @Autowired
     private RedisCache redisCache;
     
