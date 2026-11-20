@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
  **/
 @MapperScan({"com.damai.mapper"})
 @EnableTransactionManagement
-@EnableDiscoveryClient
+ @EnableDiscoveryClient
 @EnableFeignClients
 @EnableScheduling
 @SpringBootApplication

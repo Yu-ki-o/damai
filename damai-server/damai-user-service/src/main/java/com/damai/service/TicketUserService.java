@@ -66,7 +66,7 @@ public class TicketUserService extends ServiceImpl<TicketUserMapper, TicketUser>
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
-        LambdaQueryWrapper<TicketUser> ticketUserLambdaQueryWrapper = Wrappers.lambdaQuery(TicketUser.class)
+          LambdaQueryWrapper<TicketUser> ticketUserLambdaQueryWrapper = Wrappers.lambdaQuery(TicketUser.class)
                 .eq(TicketUser::getUserId, ticketUserDto.getUserId())
                 .eq(TicketUser::getIdType, ticketUserDto.getIdType())
                 .eq(TicketUser::getIdNumber, ticketUserDto.getIdNumber());
