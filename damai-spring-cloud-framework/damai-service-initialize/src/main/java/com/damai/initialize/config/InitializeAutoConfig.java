@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
  * @description: 初始化执行 相关配置
  * @author: 阿星不是程序员
  **/
+//这里实现四个执行器的注册
 public class InitializeAutoConfig {
     
     @Bean

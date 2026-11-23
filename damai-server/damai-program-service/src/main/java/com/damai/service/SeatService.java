@@ -167,8 +167,10 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
     
     public SeatRelateInfoVo relateInfo(SeatListDto seatListDto) {
         SeatRelateInfoVo seatRelateInfoVo = new SeatRelateInfoVo();
+        //从redis中获取节目详情
         ProgramVo programVo = 
                 redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM,seatListDto.getProgramId()),ProgramVo.class);
+        //如果查询不到，则去数据库中查询，再放入redis中
         if (Objects.isNull(programVo)){
             ProgramGetDto programGetDto = new ProgramGetDto();
             programGetDto.setId(seatListDto.getProgramId());

@@ -83,7 +83,7 @@ public class RedisCacheImpl implements RedisCache {
         CacheUtil.checkNotBlank(redisKeyBuild);
         String key = redisKeyBuild.getRelKey();
         String valueStr = redisTemplate.opsForValue().get(key);
-        List<T> tList = null;
+        List< T> tList = null;
         if (CacheUtil.isEmpty(valueStr)) {
             tList = supplier.get();
             if (CacheUtil.isEmpty(tList)) {
