@@ -118,66 +118,95 @@ public class ProgramOrderService {
     }
     
     public String create(ProgramOrderCreateDto programOrderCreateDto) {
+        //从多级缓存中查找节目演出时间ProgramShowTime
         ProgramShowTime programShowTime =
                 programShowTimeService.selectProgramShowTimeByProgramIdMultipleCache(programOrderCreateDto.getProgramId());
+        //查询对应的票档类型
         List<TicketCategoryVo> getTicketCategoryList = 
                 getTicketCategoryList(programOrderCreateDto,programShowTime.getShowTime());
+        //传入的座位总价格
         BigDecimal parameterOrderPrice = new BigDecimal("0");
+        //库中的座位总价格
         BigDecimal databaseOrderPrice = new BigDecimal("0");
+        //要购买的座位
         List<SeatVo> purchaseSeatList = new ArrayList<>();
+        //入参的座位
         List<SeatDto> seatDtoList = programOrderCreateDto.getSeatDtoList();
+        //该节目下所有未售卖的座位
         List<SeatVo> seatVoList = new ArrayList<>();
+        //该节目下的余票数量
         Map<String, Long> ticketCategoryRemainNumber = new HashMap<>(16);
+        //遍历得到的票档
         for (TicketCategoryVo ticketCategory : getTicketCategoryList) {
+            //从缓存中查询座位
             List<SeatVo> allSeatVoList = 
                     seatService.selectSeatResolution(programOrderCreateDto.getProgramId(), ticketCategory.getId(), 
                             DateUtils.countBetweenSecond(DateUtils.now(), programShowTime.getShowTime()), TimeUnit.SECONDS);
+            //将查询到未售卖的座位放入seatVoList
             seatVoList.addAll(allSeatVoList.stream().
                     filter(seatVo -> seatVo.getSellStatus().equals(SellStatus.NO_SOLD.getCode())).toList());
+            //将查询到的余票数量放入ticketCategoryRemainNumber   key:票档id  value:余票数量
             ticketCategoryRemainNumber.putAll(ticketCategoryService.getRedisRemainNumberResolution(
                     programOrderCreateDto.getProgramId(),ticketCategory.getId()));
         }
+        //入参座位存在
         if (CollectionUtil.isNotEmpty(seatDtoList)) {
+            //余票数量检测 key：票档id  value：票档数量
             Map<Long, Long> seatTicketCategoryDtoCount = seatDtoList.stream()
                     .collect(Collectors.groupingBy(SeatDto::getTicketCategoryId, Collectors.counting()));
             for (Entry<Long, Long> entry : seatTicketCategoryDtoCount.entrySet()) {
                 Long ticketCategoryId = entry.getKey();
                 Long purchaseCount = entry.getValue();
+                //余票数量
                 Long remainNumber = Optional.ofNullable(ticketCategoryRemainNumber.get(String.valueOf(ticketCategoryId)))
                         .orElseThrow(() -> new DaMaiFrameException(BaseCode.TICKET_CATEGORY_NOT_EXIST_V2));
+                //如果购买数量大于余票数量，那么提示数量不足
                 if (purchaseCount > remainNumber) {
                     throw new DaMaiFrameException(BaseCode.TICKET_REMAIN_NUMBER_NOT_SUFFICIENT);
                 }
             }
+            //验证入参的对象在库中的状态，不存在、已锁、已售卖
             Map<String, SeatVo> seatVoMap = seatVoList.stream().collect(Collectors
                     .toMap(seat -> seat.getRowCode() + "-" + seat.getColCode(), seat -> seat, (v1, v2) -> v2));
+            //循环入参的座位对象
             for (SeatDto seatDto : seatDtoList) {
                 SeatVo seatVo = seatVoMap.get(seatDto.getRowCode() + "-" + seatDto.getColCode());
+                //如果入参的座位在未售卖的座位中不存在，那么直接抛出异常提示
                 if (Objects.isNull(seatVo)) {
                     throw new DaMaiFrameException(BaseCode.SEAT_IS_NOT_NOT_SOLD);
                 }
                 purchaseSeatList.add(seatVo);
+                //将入参的座位价格进行累加
                 parameterOrderPrice = parameterOrderPrice.add(seatDto.getPrice());
+                //将库中的座位价格进行累加
                 databaseOrderPrice = databaseOrderPrice.add(seatVo.getPrice());
             }
+            //传入的座位价格累加不能大于存放的相应座位累加价格
             if (parameterOrderPrice.compareTo(databaseOrderPrice) > 0) {
                 throw new DaMaiFrameException(BaseCode.PRICE_ERROR);
             }
         }else {
+            //入参座位不存在，利用算法自动根据人数和票档进行分配相邻座位
             Long ticketCategoryId = programOrderCreateDto.getTicketCategoryId();
             Integer ticketCount = programOrderCreateDto.getTicketCount();
+            //余票检测
             Long remainNumber = Optional.ofNullable(ticketCategoryRemainNumber.get(String.valueOf(ticketCategoryId)))
                     .orElseThrow(() -> new DaMaiFrameException(BaseCode.TICKET_CATEGORY_NOT_EXIST_V2));
+            //如果购票的数量大于余票数量，则直接抛出异常提示
             if (ticketCount > remainNumber) {
                 throw new DaMaiFrameException(BaseCode.TICKET_REMAIN_NUMBER_NOT_SUFFICIENT);
             }
+            //用算法匹配座位
             purchaseSeatList = SeatMatch.findAdjacentSeatVos(seatVoList.stream().filter(seatVo ->
                     Objects.equals(seatVo.getTicketCategoryId(), ticketCategoryId)).collect(Collectors.toList()), ticketCount);
+            //如果匹配出来的座位数量小于要购买的数量，拒绝执行
             if (purchaseSeatList.size() < ticketCount) {
                 throw new DaMaiFrameException(BaseCode.SEAT_OCCUPY);
             }
         }
+        //进行操作缓存中的数据
         updateProgramCacheDataResolution(programOrderCreateDto.getProgramId(),purchaseSeatList,OrderStatus.NO_PAY);
+        //将筛选出来的购买的座位信息传入，执行创建订单的操作
         return doCreate(programOrderCreateDto,purchaseSeatList);
     }
     
@@ -362,29 +391,42 @@ public class ProgramOrderService {
     }
     
     private void updateProgramCacheDataResolution(Long programId,List<SeatVo> seatVoList,OrderStatus orderStatus){
+        //如果要操作的订单状态不是未支付和取消，那么直接拒绝
         if (!(Objects.equals(orderStatus.getCode(), OrderStatus.NO_PAY.getCode()) ||
                 Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode()))) {
             throw new DaMaiFrameException(BaseCode.OPERATE_ORDER_STATUS_NOT_PERMIT);
         }
         List<String> keys = new ArrayList<>();
+        //这里key只是占位，并不起实际作用
         keys.add("#");
         
         String[] data = new String[3];
         Map<Long, Long> ticketCategoryCountMap =
                 seatVoList.stream().collect(Collectors.groupingBy(SeatVo::getTicketCategoryId, Collectors.counting()));
+        //更新票档数据集合
         JSONArray jsonArray = new JSONArray();
         ticketCategoryCountMap.forEach((k,v) -> {
+            //这里是计算更新票档数据
             JSONObject jsonObject = new JSONObject();
+            //票档数量的key
             jsonObject.put("programTicketRemainNumberHashKey",RedisKeyBuild.createRedisKey(
                     RedisKeyManage.PROGRAM_TICKET_REMAIN_NUMBER_HASH_RESOLUTION, programId, k).getRelKey());
+            //票档id
             jsonObject.put("ticketCategoryId",String.valueOf(k));
+            //{
+            //"programTicketRemainNumberHashKey": "damai-d_mai_program_ticket_remain_number_hash_resolution_101_201",
+            //"ticketCategoryId": "201"
+            // }
+            //如果是生成订单操作，则将扣减余票数量
             if (Objects.equals(orderStatus.getCode(), OrderStatus.NO_PAY.getCode())) {
                 jsonObject.put("count","-" + v);
+                //如果是取消订单操作，则将恢复余票数量
             } else if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
                 jsonObject.put("count",v);
             }
             jsonArray.add(jsonObject);
         });
+        //座位map key:票档id  value:座位集合
         Map<Long, List<SeatVo>> seatVoMap = 
                 seatVoList.stream().collect(Collectors.groupingBy(SeatVo::getTicketCategoryId));
         JSONArray delSeatIdjsonArray = new JSONArray();
@@ -394,14 +436,20 @@ public class ProgramOrderService {
             JSONObject seatDatajsonObject = new JSONObject();
             String seatHashKeyDel = "";
             String seatHashKeyAdd = "";
+            //如果是生成订单操作，则将座位修改为锁定状态
             if (Objects.equals(orderStatus.getCode(), OrderStatus.NO_PAY.getCode())) {
+                //没有售卖座位的key
                 seatHashKeyDel = (RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, programId, k).getRelKey());
+                //锁定座位的key
                 seatHashKeyAdd = (RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, k).getRelKey());
                 for (SeatVo seatVo : v) {
                     seatVo.setSellStatus(SellStatus.LOCK.getCode());
                 }
+                //如果是取消订单操作，则将座位修改为未售卖状态
             } else if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
+                //锁定座位的key
                 seatHashKeyDel = (RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, k).getRelKey());
+                //没有售卖座位的key
                 seatHashKeyAdd = (RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, programId, k).getRelKey());
                 for (SeatVo seatVo : v) {
                     seatVo.setSellStatus(SellStatus.NO_SOLD.getCode());

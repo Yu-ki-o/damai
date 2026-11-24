@@ -9,7 +9,7 @@ public enum LockType {
     /**
      * 可重入锁
      */
-    Reentrant,
+    Reentrant,//在该项目中这里的可重入锁是公平锁
     /**
      * 公平锁
      */
