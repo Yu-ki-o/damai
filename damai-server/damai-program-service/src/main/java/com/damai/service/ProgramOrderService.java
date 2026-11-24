@@ -264,6 +264,7 @@ public class ProgramOrderService {
         
         String orderNumber = createOrderByRpc(orderCreateDto,purchaseSeatList);
         
+        //这里发送延迟取消订单消息，防止用户下单后不支付，导致库存被占用
         DelayOrderCancelDto delayOrderCancelDto = new DelayOrderCancelDto();
         delayOrderCancelDto.setOrderNumber(orderCreateDto.getOrderNumber());
         delayOrderCancelSend.sendMessage(JSON.toJSONString(delayOrderCancelDto));
