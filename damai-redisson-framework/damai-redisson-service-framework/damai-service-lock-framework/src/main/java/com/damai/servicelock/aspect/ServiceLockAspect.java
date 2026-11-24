@@ -36,7 +36,9 @@ public class ServiceLockAspect {
     
     private final ServiceLockFactory serviceLockFactory;
     
-
+    //这里是切面方法，拦截所有标注了@ServiceLock注解的方法,定义了具体的切面逻辑
+    //around注解表示环绕通知，表示在方法执行前后都可以进行处理
+    //aroud函数中的servicelock参数是切面方法的参数，表示被拦截的方法上标注的@ServiceLock注解对象
     @Around("@annotation(servicelock)")
     public Object around(ProceedingJoinPoint joinPoint, ServiceLock servicelock) throws Throwable {
         LockInfoHandle lockInfoHandle = lockInfoHandleFactory.getLockInfoHandle(LockInfoType.SERVICE_LOCK);

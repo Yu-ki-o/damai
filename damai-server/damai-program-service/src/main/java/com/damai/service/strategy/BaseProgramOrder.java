@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
  * @description: 节目订单
  * @author: 阿星不是程序员
  **/
+
+//这个类将本地锁的逻辑拆分出来，而且要考虑到后面的生成订单V4版本也要使用本地锁，所以要实现复用。
+//LockTask是一个函数式接口，里面有一个execute方法，传入一个lambda表达式就可以执行,专门用来实现获得锁后的执行任务
 @Slf4j
 @Component
 public class BaseProgramOrder {

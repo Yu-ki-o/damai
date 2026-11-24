@@ -34,6 +34,8 @@ public class LocalCacheProgramShowTime {
     @Value("${maximumSize:10000}")
     private Long maximumSize;
     
+
+    //PostConstruct注解的方法会在依赖注入完成后被自动调用，用于执行一些初始化操作
     @PostConstruct
     public void localLockCacheInit(){
         localCache = Caffeine.newBuilder()

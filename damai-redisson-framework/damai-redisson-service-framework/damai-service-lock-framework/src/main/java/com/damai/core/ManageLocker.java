@@ -21,6 +21,8 @@ import static com.damai.servicelock.LockType.Write;
  * @description: 分布式锁 锁缓存
  * @author: 阿星不是程序员
  **/
+
+//该类初始化过程中就会创建好四种锁的实例，并缓存起来，后续使用时直接从缓存中获取即可
 public class ManageLocker {
 
     private final Map<LockType, ServiceLocker> cacheLocker = new HashMap<>();

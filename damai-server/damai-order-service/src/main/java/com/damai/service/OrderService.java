@@ -350,31 +350,40 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
      * */
     @Transactional(rollbackFor = Exception.class)
     public void updateOrderRelatedData(Long orderNumber,OrderStatus orderStatus){
+        //如果不是取消或者支付操作，则直接抛出异常提示
         if (!(Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode()) ||
                 Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode()))) {
             throw new DaMaiFrameException(BaseCode.OPERATE_ORDER_STATUS_NOT_PERMIT);
         }
+        //根据订单编号查询订单
         LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
                 Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderNumber);
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
+        //检查订单是否存在及其状态，已取消、已支付、已退单的订单不再执行
         checkOrderStatus(order);
+        //将订单更新为取消或者支付状态
         Order updateOrder = new Order();
         updateOrder.setId(order.getId());
         updateOrder.setOrderStatus(orderStatus.getCode());
         
+        //将购票人订单更新为取消或者支付状态
         OrderTicketUser updateOrderTicketUser = new OrderTicketUser();
         updateOrderTicketUser.setOrderStatus(orderStatus.getCode());
+        //支付状态的操作：记录支付时间
         if (Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode())) {
             updateOrder.setPayOrderTime(DateUtils.now());
             updateOrderTicketUser.setPayOrderTime(DateUtils.now());
         } else if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
+            //取消状态的操作：记录取消时间
             updateOrder.setCancelOrderTime(DateUtils.now());
             updateOrderTicketUser.setCancelOrderTime(DateUtils.now());
         }
+        //更新订单
         LambdaUpdateWrapper<Order> orderLambdaUpdateWrapper =
                 Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, order.getOrderNumber());
         int updateOrderResult = orderMapper.update(updateOrder,orderLambdaUpdateWrapper);
         
+        //更新该订单下的购票人订单
         LambdaUpdateWrapper<OrderTicketUser> orderTicketUserLambdaUpdateWrapper =
                 Wrappers.lambdaUpdate(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
         int updateTicketUserOrderResult =
@@ -382,24 +391,29 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         if (updateOrderResult <= 0 || updateTicketUserOrderResult <= 0) {
             throw new DaMaiFrameException(BaseCode.ORDER_CANAL_ERROR);
         }
+        //查询该订单下的购票人订单列表
         LambdaQueryWrapper<OrderTicketUser> orderTicketUserLambdaQueryWrapper =
                 Wrappers.lambdaQuery(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
         List<OrderTicketUser> orderTicketUserList = orderTicketUserMapper.selectList(orderTicketUserLambdaQueryWrapper);
         if (CollectionUtil.isEmpty(orderTicketUserList)) {
             throw new DaMaiFrameException(BaseCode.TICKET_USER_ORDER_NOT_EXIST);
         }
+        //取消订单时，按实际更新的购票人订单条数扣减用户在该节目下的购票计数
         if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
             redisCache.incrBy(RedisKeyBuild.createRedisKey(
                     RedisKeyManage.ACCOUNT_ORDER_COUNT,order.getUserId(),order.getProgramId()),-updateTicketUserOrderResult);
         }
         Long programId = order.getProgramId();
+        //按票档分组，key：票档id，value：购票人订单集合
         Map<Long, List<OrderTicketUser>> orderTicketUserSeatList = 
                 orderTicketUserList.stream().collect(Collectors.groupingBy(OrderTicketUser::getTicketCategoryId));
         Map<Long,List<Long>> seatMap = new HashMap<>(orderTicketUserSeatList.size());
+        //提取各票档对应的座位id，seatMap的key为票档id，value为座位id集合
         orderTicketUserSeatList.forEach((k,v) -> {
             seatMap.put(k,v.stream().map(OrderTicketUser::getSeatId).collect(Collectors.toList()));
         });
         
+        //更新节目相关数据
         updateProgramRelatedDataResolution(programId,seatMap,orderStatus);
     }
     
