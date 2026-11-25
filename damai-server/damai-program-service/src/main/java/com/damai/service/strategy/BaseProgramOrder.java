@@ -42,6 +42,10 @@ public class BaseProgramOrder {
         }
         List<ReentrantLock> localLockList = new ArrayList<>(ticketCategoryIdList.size());
         List<ReentrantLock> localLockSuccessList = new ArrayList<>(ticketCategoryIdList.size());
+        //这里使用非公平锁，在高并发场景下，公平锁严格要求“先来后到”，
+        // 每次释放锁都必须去唤醒一个休眠挂起的线程（涉及频繁的 CPU 线程上下文切换）；
+        // 而非公平锁允许刚好在这一瞬间新到达、还处在活跃运行态的线程直接尝试抢锁执行，
+        // 省去了“挂起 + 唤醒”的开销，单机吞吐量比公平锁高得多
         for (Long ticketCategoryId : ticketCategoryIdList) {
             String lockKey = StrUtil.join("-",lockKeyPrefix,
                     programOrderCreateDto.getProgramId(),ticketCategoryId);
@@ -58,6 +62,7 @@ public class BaseProgramOrder {
         }
         try {
             return lockTask.execute();
+        //这里的finally块是为了保证即使在执行任务过程中出现异常，也能释放已经获得的本地锁，避免死锁
         }finally {
             for (int i = localLockSuccessList.size() - 1; i >= 0; i--) {
                 ReentrantLock reentrantLock = localLockSuccessList.get(i);
