@@ -68,6 +68,9 @@ public class AlipayStrategyHandler implements PayStrategyHandler {
             //电脑网站支付场景固定传值FAST_INSTANT_TRADE_PAY
             bizContent.put("product_code", "FAST_INSTANT_TRADE_PAY");
             request.setBizContent(bizContent.toString());
+            //调用支付宝官方sdk，生成支付表单，这里是html表单，由于html中最后一行的js脚本会自动提交表单，
+            // 支付宝会返回支付账号密码界面。这样由用户提交html表单，支付宝才会将支付页面返回该用户浏览器
+            //而不是后端服务器
             AlipayTradePagePayResponse response = alipayClient.pageExecute(request,"POST");
             return new PayResult(response.isSuccess(),response.getBody());
         }catch (Exception e) {
