@@ -176,13 +176,16 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
     }
     
     public String pay(OrderPayDto orderPayDto) {
+        //查询生成的订单
         Long orderNumber = orderPayDto.getOrderNumber();
         LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
                 Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderNumber);
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
+        //订单为空，抛出异常
         if (Objects.isNull(order)) {
             throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
         }
+        //订单已取消
         if (Objects.equals(order.getOrderStatus(), OrderStatus.CANCEL.getCode())) {
             throw new DaMaiFrameException(BaseCode.ORDER_CANCEL);
         }
@@ -195,6 +198,7 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         if (orderPayDto.getPrice().compareTo(order.getOrderPrice()) != 0) {
             throw new DaMaiFrameException(BaseCode.PAY_PRICE_NOT_EQUAL_ORDER_PRICE);
         }
+        //调用支付服务进行支付
         PayDto payDto = getPayDto(orderPayDto, orderNumber);
         ApiResponse<String> payResponse = payClient.commonPay(payDto);
         if (!Objects.equals(payResponse.getCode(), BaseCode.SUCCESS.getCode())) {
@@ -355,7 +359,6 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                 Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode()))) {
             throw new DaMaiFrameException(BaseCode.OPERATE_ORDER_STATUS_NOT_PERMIT);
         }
-        //根据订单编号查询订单
         LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
                 Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderNumber);
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
@@ -398,7 +401,6 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         if (CollectionUtil.isEmpty(orderTicketUserList)) {
             throw new DaMaiFrameException(BaseCode.TICKET_USER_ORDER_NOT_EXIST);
         }
-        //取消订单时，按实际更新的购票人订单条数扣减用户在该节目下的购票计数
         if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
             redisCache.incrBy(RedisKeyBuild.createRedisKey(
                     RedisKeyManage.ACCOUNT_ORDER_COUNT,order.getUserId(),order.getProgramId()),-updateTicketUserOrderResult);
